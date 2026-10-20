@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DensiMap · datzin</title>
+<meta name="description" content="Densidad de giros comerciales en la Zona Metropolitana de Guadalajara con datos del DENUE.">
+<link rel="icon" href="/static/datzin-marca.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+  :root{
+    --paper:#fff;--soft:#eff0f3;--ink:#0d0d0d;--muted:#5f6068;--line:#d9dae0;--pink:#d9376e;--pink-strong:#b42656;
+    --header:60px;--panel-w:340px;
+    font-family:"DM Sans",system-ui,sans-serif;color:var(--ink);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;height:100dvh;overflow:hidden;background:var(--paper);font-size:14px}
+  button,input,select{font:inherit;color:inherit}
+  button{cursor:pointer;background:none;border:0;padding:0}
+  a{color:inherit}
+  [hidden]{display:none!important}
+  :focus-visible{outline:2px solid var(--pink);outline-offset:2px}
+  svg.i{width:18px;height:18px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .num{font-variant-numeric:tabular-nums}
+
+  /* header */
+  .site-header{position:fixed;inset:0 0 auto 0;height:var(--header);z-index:30;background:var(--paper);border-bottom:1px solid var(--ink);display:flex;align-items:center;gap:14px;padding:0 20px}
+  .logo{display:flex;align-items:center;gap:10px;text-decoration:none;font-size:21px;letter-spacing:-.8px;font-weight:700}
+  .logo img{height:26px;width:auto}
+  .logo i{font-style:normal;color:var(--pink)}
+  .logo .slash{color:var(--line);font-weight:400}
+  .logo .product{font-weight:500}
+  .tag{border:1px solid var(--ink);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700;letter-spacing:1px}
+  .nav{margin-left:auto;display:flex;align-items:center;gap:22px}
+  .nav a{position:relative;text-decoration:none;font-weight:500}
+  .nav a::after{content:"";position:absolute;left:0;right:0;bottom:-3px;height:1px;background:var(--ink);transform:scaleX(0);transform-origin:left;transition:transform .2s}
+  .nav a:hover::after{transform:scaleX(1)}
+  .nav .source{color:var(--muted);font-size:13px}
+  .btn{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 14px;border:1px solid var(--ink);border-radius:4px;font-weight:500;background:var(--paper)}
+  #catalog-toggle{display:none}
+
+  /* catalog */
+  .catalog{position:fixed;top:var(--header);left:0;bottom:0;width:var(--panel-w);z-index:20;background:var(--paper);border-right:1px solid var(--ink);display:flex;flex-direction:column}
+  .catalog-in{flex:1;overflow:auto;padding:22px 22px 12px}
+  .catalog h1{margin:0;font-size:32px;letter-spacing:-1.2px;font-weight:700}
+  .catalog h1 i{font-style:normal;color:var(--pink)}
+  .lede{margin:6px 0 18px;color:var(--muted);line-height:1.45}
+  .search{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--ink);padding:6px 0}
+  .search input{flex:1;border:0;outline:0;background:none;min-width:0}
+  .group h3{display:flex;justify-content:space-between;margin:22px 0 4px;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;font-weight:700}
+  .group h3 span+span{color:var(--muted)}
+  .layer{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 0;border-bottom:1px solid var(--line)}
+  .layer .name{flex:1;min-width:0;font-weight:500;font-size:15px}
+  .layer small{display:block;color:var(--muted);font-weight:400;font-size:12.5px}
+  .swatch{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+  .switch{width:34px;height:20px;border-radius:999px;border:1px solid var(--ink);position:relative;flex-shrink:0;transition:background .15s}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--ink);transition:transform .15s}
+  .layer[aria-checked="true"] .switch{background:var(--pink-strong);border-color:var(--pink-strong)}
+  .layer[aria-checked="true"] .switch::after{transform:translateX(14px);background:#fff}
+  .catalog footer{border-top:1px solid var(--ink);padding:12px 22px;display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+  .catalog footer b{color:var(--ink)}
+  .empty{color:var(--muted);padding:18px 0}
+
+  /* map */
+  #map{position:fixed;top:var(--header);left:var(--panel-w);right:0;bottom:0;background:#f3f2ef}
+  .maplibregl-ctrl-attrib,.maplibregl-ctrl-scale{font-family:"DM Sans",sans-serif;font-size:11px}
+  .maplibregl-popup-content{border:1px solid var(--ink);border-radius:4px;box-shadow:none;padding:14px 16px;font-family:"DM Sans",sans-serif;min-width:230px}
+  .pop-eyebrow{font-size:11px;letter-spacing:1px;text-transform:uppercase;font-weight:700;color:var(--pink-strong)}
+  .pop-title{margin:4px 0 8px;font-size:16px;font-weight:700}
+  .pop dl{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;margin:0;font-size:12.5px}
+  .pop dt{color:var(--muted)}.pop dd{margin:0}
+
+  /* cards on the map */
+  .card{position:fixed;z-index:15;background:var(--paper);border:1px solid var(--ink);border-radius:4px}
+  /* Leaves room for the map controls stacked below it. */
+  .onmap{top:calc(var(--header) + 16px);right:16px;width:340px;max-height:calc(100dvh - var(--header) - 232px);display:flex;flex-direction:column}
+  .onmap>header{display:flex;align-items:center;gap:6px;padding:12px 10px 12px 16px;border-bottom:1px solid var(--ink)}
+  .onmap>header h2{margin:0;font-size:16px;flex:1}
+  .onmap>header h2 span{color:var(--pink-strong)}
+  .icon-btn{width:32px;height:32px;display:grid;place-items:center;border-radius:4px}
+  .icon-btn:hover{background:var(--soft)}
+  .icon-btn:disabled{opacity:.3;cursor:default;background:none}
+  #active-list{list-style:none;margin:0;padding:0;overflow:auto}
+  .row{border-bottom:1px solid var(--line)}
+  .row-head{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px 11px 16px;text-align:left}
+  .row-head .index{font-size:12px;color:var(--muted)}
+  .row-head .title{flex:1;min-width:0;font-weight:500}
+  .row-head .title small{display:block;color:var(--muted);font-size:12px;font-weight:400}
+  .row-head .title.off{color:var(--muted);text-decoration:line-through}
+  .row.open .row-head{background:var(--soft)}
+  .row-body{padding:12px 16px 14px;display:grid;gap:12px}
+  .seg{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--ink);border-radius:4px;overflow:hidden}
+  .seg button{padding:7px 0;font-size:12.5px;font-weight:500}
+  .seg button+button{border-left:1px solid var(--ink)}
+  .seg button[aria-pressed="true"]{background:var(--ink);color:#fff}
+  .field{display:flex;align-items:center;gap:10px;font-size:12.5px}
+  .field>span:first-child{width:62px;color:var(--muted)}
+  .field input[type=range]{flex:1;accent-color:var(--pink-strong)}
+  .field input[type=color]{width:34px;height:24px;border:1px solid var(--ink);border-radius:4px;padding:0;background:none}
+  .field select{flex:1;height:30px;border:1px solid var(--ink);border-radius:4px;background:var(--paper);padding:0 6px}
+  .legend{display:grid;gap:4px;font-size:12px;color:var(--muted)}
+  .legend .ramp{display:flex;border:1px solid var(--line)}
+  .legend .ramp span{flex:1;height:12px}
+  .legend .ticks{display:flex;justify-content:space-between}
+  .legend .bubbles{display:flex;align-items:flex-end;gap:14px}
+  .legend .bubbles span{display:grid;justify-items:center;gap:3px}
+  .legend .bubbles i{display:block;border-radius:50%;border:1px solid var(--ink)}
+  .explain{margin:0;line-height:1.45;font-size:12.5px}
+  .explain ol{margin:6px 0 0;padding-left:18px;color:var(--muted)}
+  .downloads{margin:0;display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px}
+  .downloads a{border-bottom:1px solid var(--ink);font-weight:500;text-decoration:none;white-space:nowrap}
+  .row-actions{display:flex;align-items:center;gap:2px}
+  .row-actions .spacer{flex:1}
+  .onmap>footer{display:flex;justify-content:space-between;padding:9px 16px;font-size:12px;color:var(--muted);border-top:1px solid var(--ink)}
+  .onmap>footer .error{color:var(--pink-strong)}
+  #empty{margin:0;padding:18px 16px;color:var(--muted);line-height:1.45}
+
+  .controls{right:16px;bottom:34px;display:flex;flex-direction:column}
+  .controls button{width:40px;height:40px;display:grid;place-items:center}
+  .controls button+button{border-top:1px solid var(--ink)}
+  .controls button:hover{background:var(--soft)}
+  #base-menu{right:66px;bottom:34px;width:230px;padding:6px 0}
+  #base-menu button{display:block;width:100%;text-align:left;padding:8px 14px}
+  #base-menu button[aria-checked="true"]{box-shadow:inset 3px 0 var(--pink)}
+  #base-menu small{display:block;color:var(--muted);font-size:12px}
+
+  @media (max-width:760px){
+    :root{--panel-w:0px}
+    .nav a,.nav .source,.tag{display:none}
+    #catalog-toggle{display:inline-flex}
+    .catalog{width:100%;transform:translateX(-100%);transition:transform .2s}
+    body.catalog-open .catalog{transform:none}
+    body.catalog-open .card{display:none}
+    .onmap{top:auto;bottom:0;right:0;left:0;width:auto;max-height:46dvh;border-radius:0;border-width:1px 0 0}
+    .controls{top:calc(var(--header) + 12px);bottom:auto;right:12px}
+    #base-menu{top:calc(var(--header) + 12px);bottom:auto;right:62px}
+    .maplibregl-ctrl-bottom-left{display:none}
+  }
+</style>
+
+<header class="site-header">
+  <a class="logo" href="/" aria-label="datzin densimap"><img src="/static/datzin-marca.png" alt=""><span>datzin<i>.</i></span><span class="slash">/</span><span class="product">densimap</span></a>
+  <span class="tag">ZMG</span>
+  <nav class="nav">
+    <span class="source" id="source"></span>
+    <a href="/docs" target="_blank" rel="noopener">API ↗</a>
+    <button class="btn" id="catalog-toggle" aria-expanded="false">Capas</button>
+  </nav>
+</header>
+
+<aside class="catalog" id="catalog">
+  <div class="catalog-in">
+    <h1>Capas<i>.</i></h1>
+    <p class="lede">Unidades económicas del DENUE en la Zona Metropolitana de Guadalajara. Activa un giro y elige cómo ver su densidad.</p>
+    <label class="search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="query" type="search" placeholder="Buscar giro o tema" aria-label="Buscar giro"></label>
+    <div id="catalog-list"></div>
+  </div>
+  <footer><span>Un producto de <b>datzin.</b></span><span>INEGI · DENUE</span></footer>
+</aside>
+
+<div id="map"></div>
+
+<section class="card onmap" aria-label="Capas en el mapa">
+  <header>
+    <h2>En el mapa <span id="active-count" class="num">00</span></h2>
+    <button class="icon-btn" id="clear-all" title="Quitar todas" aria-label="Quitar todas"></button>
+  </header>
+  <p id="empty">Activa un giro del catálogo para ver dónde se concentra.</p>
+  <ol id="active-list"></ol>
+  <footer><span>Arriba se dibuja encima</span><span id="status"></span></footer>
+</section>
+
+<div class="card controls" role="group" aria-label="Controles del mapa">
+  <button id="zoom-in" title="Acercar" aria-label="Acercar"></button>
+  <button id="zoom-out" title="Alejar" aria-label="Alejar"></button>
+  <button id="home" title="Ver toda la ZMG" aria-label="Ver toda la ZMG"></button>
+  <button id="base" title="Mapa base" aria-label="Mapa base" aria-expanded="false"></button>
+</div>
+<div class="card" id="base-menu" role="radiogroup" aria-label="Mapa base" hidden></div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>
+const ICONS={
+  plus:'<path d="M12 5v14M5 12h14"/>',minus:'<path d="M5 12h14"/>',
+  home:'<path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z"/>',layers:'<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>',
+  eye:'<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff:'<path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.8 8.3 2 12 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/>',
+  up:'<path d="M12 19V5M6 11l6-6 6 6"/>',down:'<path d="M12 5v14M6 13l6 6 6-6"/>',
+  trash:'<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  chevronDown:'<path d="m6 9 6 6 6-6"/>',chevronUp:'<path d="m6 15 6-6 6 6"/>',
+};
+const icon=name=>`<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
+const BASEMAPS={
+  light:{label:'Claro',detail:'Esri · fondo neutro para leer datos',tiles:'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',attribution:'© Esri, HERE, Garmin, © OpenStreetMap',maxzoom:16},
+  osm:{label:'OpenStreetMap',detail:'Calles, colonias y comercios',tiles:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',attribution:'© OpenStreetMap',maxzoom:19},
+  satellite:{label:'Satélite',detail:'Esri · imágenes de alta resolución',tiles:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',attribution:'© Esri, Maxar, Earthstar Geographics',maxzoom:19},
+};
+const SYMBOLOGIES={points:'Puntos',heat:'Calor',hexagons:'Hexágonos',bubbles:'Burbujas'};
+// Automatic hexagon size by zoom: [size_m, minzoom, maxzoom).
+const AUTO=[[2000,0,10],[1000,10,11.5],[500,11.5,13],[250,13,24]];
+const SIZE_LABEL={250:'250 m',500:'500 m',1000:'1 km',2000:'2 km'};
+const RAMP=[.16,.36,.56,.78,1];
+const BUBBLE_MAX=24;
+
+const $=selector=>document.querySelector(selector);
+const el=(tag,props={},...children)=>{const node=Object.assign(document.createElement(tag),props);node.append(...children);return node;};
+const normalize=text=>text.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu,'');
+const fmt=(value,digits=0)=>Number(value).toLocaleString('es-MX',{maximumFractionDigits:digits,minimumFractionDigits:digits});
+const filterParam=predicate=>encodeURIComponent(JSON.stringify(predicate));
+const byCategory=slug=>({op:'eq',field:'category',value:slug});
+
+let summary,map,openRow=null,baseKey='light';
+let active=[];               // slugs; the first one is drawn on top
+const settings={};           // slug -> {symbology,color,opacity,size,visible}
+const category=slug=>summary.categories.find(c=>c.slug===slug);
+
+function mix(hex,t){         // blend white -> hex by t
+  const n=parseInt(hex.slice(1),16),c=[n>>16,(n>>8)&255,n&255];
+  return '#'+c.map(v=>Math.round(255+(v-255)*t).toString(16).padStart(2,'0')).join('');
+}
+function setStatus(text,error=false){$('#status').textContent=text;$('#status').classList.toggle('error',error);}
+
+/* ---------- map layers ---------- */
+function tileUrl(layer,predicate,properties){
+  return `${location.origin}/atlas/tiles/${layer}/{z}/{x}/{y}.mvt?properties=${properties}&ATLAS_FILTER=${filterParam(predicate)}`;
+}
+function sizesFor(slug){
+  const size=settings[slug].size;
+  return size==='auto'?AUTO:[[Number(size),0,24]];
+}
+function hexStats(slug,size){return category(slug).hexagons[size]||{breaks:[],max_count:1,max_density:0};}
+function steps(slug,size){
+  // Quantile breaks repeat on sparse layers; MapLibre needs strictly ascending stops.
+  const out=[];
+  for(const b of hexStats(slug,size).breaks)if(!out.length||b>out[out.length-1]+1e-9)out.push(b);
+  return out;
+}
+function mapLayerIds(slug){return map.getStyle().layers.map(layer=>layer.id).filter(id=>id.startsWith(slug+':'));}
+function clearLayer(slug){
+  for(const id of mapLayerIds(slug))map.removeLayer(id);
+  for(const id of Object.keys(map.getStyle().sources))if(id.startsWith(slug+':'))map.removeSource(id);
+}
+
+// ponytail: every style change rebuilds the category's sources; tiles come back from the HTTP cache.
+function drawLayer(slug){
+  clearLayer(slug);
+  const s=settings[slug],layout={visibility:s.visible?'visible':'none'};
+  if(s.symbology==='points'||s.symbology==='heat'){
+    const source=`${slug}:points`;
+    map.addSource(source,{type:'vector',tiles:[tileUrl('establishments',byCategory(slug),'denue_id')],minzoom:8,maxzoom:16});
+    if(s.symbology==='points')map.addLayer({id:`${slug}:points`,type:'circle',source,'source-layer':'establishments',layout,paint:{
+      'circle-color':s.color,'circle-opacity':s.opacity,
+      'circle-radius':['interpolate',['linear'],['zoom'],9,1.6,12,2.8,15,5,17,7],
+      'circle-stroke-color':'#fff','circle-stroke-width':['interpolate',['linear'],['zoom'],11,0,14,.8],
+    }});
+    else map.addLayer({id:`${slug}:heat`,type:'heatmap',source,'source-layer':'establishments',layout,paint:{
+      'heatmap-opacity':s.opacity,
+      'heatmap-radius':['interpolate',['linear'],['zoom'],9,5,12,12,15,26],
+      'heatmap-intensity':['interpolate',['linear'],['zoom'],9,.6,15,1.6],
+      'heatmap-color':['interpolate',['linear'],['heatmap-density'],0,'rgba(0,0,0,0)',.15,mix(s.color,.25),.4,mix(s.color,.5),.7,mix(s.color,.8),1,s.color],
+    }});
+    return;
+  }
+  const hexagons=s.symbology==='hexagons',layer=hexagons?'hexagons':'hexagon_centers';
+  for(const [size,minzoom,maxzoom] of sizesFor(slug)){
+    const source=`${slug}:${layer}:${size}`;
+    const predicate={op:'and',args:[byCategory(slug),{op:'eq',field:'size_m',value:size}]};
+    map.addSource(source,{type:'vector',tiles:[tileUrl(layer,predicate,'count,density_km2,size_m')],maxzoom:16});
+    const base={source,'source-layer':layer,minzoom,maxzoom,layout};
+    if(hexagons){
+      const stops=steps(slug,size).flatMap((b,i)=>[b,mix(s.color,RAMP[i+1]??1)]);
+      map.addLayer({...base,id:`${slug}:hex:${size}`,type:'fill',paint:{
+        'fill-color':stops.length?['step',['get','density_km2'],mix(s.color,RAMP[0]),...stops]:s.color,
+        'fill-opacity':s.opacity*.88,'fill-outline-color':'rgba(255,255,255,.7)',
+      }});
+    }else{
+      const max=Math.max(Math.sqrt(hexStats(slug,size).max_count),1.01);
+      map.addLayer({...base,id:`${slug}:bubbles:${size}`,type:'circle',paint:{
+        'circle-color':s.color,'circle-opacity':s.opacity*.55,
+        'circle-radius':['interpolate',['linear'],['sqrt',['get','count']],1,2.5,max,BUBBLE_MAX],
+        'circle-stroke-color':s.color,'circle-stroke-width':1,'circle-stroke-opacity':s.opacity,
+      }});
+    }
+  }
+}
+function order(){
+  // The last moved layer ends up on top, so walk the list from the bottom.
+  for(const slug of [...active].reverse())for(const id of mapLayerIds(slug))map.moveLayer(id);
+  map.moveLayer('municipalities');
+}
+function setVisible(slug,visible){
+  settings[slug].visible=visible;
+  for(const id of mapLayerIds(slug))map.setLayoutProperty(id,'visibility',visible?'visible':'none');
+}
+
+/* ---------- state ---------- */
+function toggleLayer(slug){
+  if(active.includes(slug))return removeLayer(slug);
+  settings[slug]??={symbology:'hexagons',color:category(slug).color,opacity:.85,size:'auto',visible:true};
+  settings[slug].visible=true;
+  active.unshift(slug);
+  if(innerWidth>760)openRow=slug; // on phones the expanded row would cover most of the map
+  drawLayer(slug);render();
+}
+function removeLayer(slug){
+  clearLayer(slug);
+  active=active.filter(other=>other!==slug);
+  if(openRow===slug)openRow=null;
+  render();
+}
+function update(slug,changes){Object.assign(settings[slug],changes);drawLayer(slug);render();}
+function move(slug,index){active=active.filter(other=>other!==slug);active.splice(index,0,slug);render();}
+function render(){
+  order();
+  $('#active-count').textContent=String(active.length).padStart(2,'0');
+  $('#clear-all').disabled=!active.length;
+  $('#empty').hidden=active.length>0;
+  renderCatalog();renderActive();
+}
+
+/* ---------- catalog ---------- */
+function renderCatalog(){
+  const query=normalize($('#query').value.trim());
+  const groups=[...new Set(summary.categories.map(c=>c.group))];
+  const sections=groups.map(group=>{
+    const items=summary.categories.filter(c=>c.group===group&&normalize(`${c.name} ${group}`).includes(query));
+    if(!items.length)return null;
+    const on=items.filter(c=>active.includes(c.slug)).length;
+    return el('section',{className:'group'},
+      el('h3',{},el('span',{textContent:group}),el('span',{textContent:on?`${on} activa${on>1?'s':''}`:''})),
+      ...items.map(c=>{
+        const button=el('button',{className:'layer'},el('span',{className:'swatch',style:`background:${settings[c.slug]?.color||c.color}`}),
+          el('span',{className:'name'},c.name,el('small',{className:'num',textContent:`${fmt(c.total)} establecimientos`})),
+          el('span',{className:'switch'}));
+        button.setAttribute('role','switch');button.setAttribute('aria-checked',active.includes(c.slug));
+        button.addEventListener('click',()=>{toggleLayer(c.slug);document.body.classList.remove('catalog-open');});
+        return button;
+      }));
+  }).filter(Boolean);
+  $('#catalog-list').replaceChildren(...(sections.length?sections:[el('p',{className:'empty',textContent:'Sin coincidencias.'})]));
+}
+
+/* ---------- active panel ---------- */
+function effectiveSize(slug){
+  const size=settings[slug].size;
+  if(size!=='auto')return Number(size);
+  const zoom=map.getZoom();
+  return AUTO.find(([,min,max])=>zoom>=min&&zoom<max)[0];
+}
+function legend(slug){
+  const s=settings[slug],box=el('div',{className:'legend'});
+  if(s.symbology==='points'){
+    box.append(el('span',{textContent:'Cada punto es un establecimiento del DENUE.'}));
+  }else if(s.symbology==='heat'){
+    box.append(el('div',{className:'ramp'},...[.1,.3,.5,.75,1].map(t=>el('span',{style:`background:${mix(s.color,t)}`}))),
+      el('div',{className:'ticks'},el('span',{textContent:'Menos concentración'}),el('span',{textContent:'Más'})));
+  }else if(s.symbology==='hexagons'){
+    const size=effectiveSize(slug),stops=steps(slug,size);
+    const labels=['<'+fmt(stops[0]??0,1),...stops.map(b=>'≥'+fmt(b,1))];
+    box.append(el('div',{className:'ramp'},...labels.map((_,i)=>el('span',{style:`background:${mix(s.color,RAMP[i])}`}))),
+      el('div',{className:'ticks num'},...labels.map(text=>el('span',{textContent:text}))),
+      el('span',{textContent:`Establecimientos por km² · hexágonos de ${SIZE_LABEL[size]}`}));
+  }else{
+    const size=effectiveSize(slug),max=hexStats(slug,size).max_count;
+    const values=[...new Set([max,Math.round(max/4),1].filter(v=>v>=1))];
+    const radius=v=>2.5+(BUBBLE_MAX-2.5)*(Math.sqrt(v)-1)/Math.max(Math.sqrt(max)-1,.01);
+    box.append(el('div',{className:'bubbles'},...values.map(v=>el('span',{},
+      el('i',{style:`width:${2*radius(v)}px;height:${2*radius(v)}px;background:${mix(s.color,.45)}`}),
+      el('small',{className:'num',textContent:fmt(v)})))),
+      el('span',{textContent:`Establecimientos por hexágono de ${SIZE_LABEL[size]}`}));
+  }
+  return box;
+}
+function explain(slug){
+  const c=category(slug),size=effectiveSize(slug);
+  const rows=summary.municipalities.map(m=>{const count=c.by_municipality[m.code]||0;return {name:m.name,count,density:count/m.area_km2};});
+  const byDensity=[...rows].sort((a,b)=>b.density-a.density),biggest=[...rows].sort((a,b)=>b.count-a.count)[0];
+  const share=Math.round(100*biggest.count/Math.max(c.total,1));
+  return el('div',{className:'explain'},
+    el('p',{className:'explain'},el('b',{className:'num',textContent:fmt(c.total)}),
+      ` establecimientos en la ZMG; ${biggest.name} concentra el ${share}%. `,
+      `La mayor densidad municipal está en ${byDensity[0].name} (${fmt(byDensity[0].density,1)} por km²) `,
+      `y el hexágono más denso de ${SIZE_LABEL[size]} llega a ${fmt(hexStats(slug,size).max_density,1)} por km².`),
+    el('ol',{},...byDensity.slice(0,3).map(r=>el('li',{className:'num',textContent:`${r.name}: ${fmt(r.count)} · ${fmt(r.density,1)}/km²`}))));
+}
+function action(name,label,handler){
+  const button=el('button',{className:'icon-btn',title:label,innerHTML:icon(name)});
+  button.setAttribute('aria-label',label);button.addEventListener('click',handler);
+  return button;
+}
+function rowBody(slug,index){
+  const s=settings[slug],body=el('div',{className:'row-body'});
+  const seg=el('div',{className:'seg',role:'group'},...Object.entries(SYMBOLOGIES).map(([key,label])=>{
+    const button=el('button',{textContent:label});
+    button.setAttribute('aria-pressed',s.symbology===key);
+    button.addEventListener('click',()=>update(slug,{symbology:key}));
+    return button;
+  }));
+  seg.setAttribute('aria-label','Simbología');
+  const color=el('input',{type:'color',value:s.color});
+  color.addEventListener('change',()=>update(slug,{color:color.value}));
+  const value=el('span',{className:'num',textContent:`${Math.round(s.opacity*100)}%`});
+  const opacity=el('input',{type:'range',min:.1,max:1,step:.05,value:s.opacity});
+  opacity.addEventListener('input',()=>{value.textContent=`${Math.round(opacity.value*100)}%`;});
+  opacity.addEventListener('change',()=>update(slug,{opacity:+opacity.value}));
+  body.append(seg,el('label',{className:'field'},el('span',{textContent:'Color'}),color),
+    el('label',{className:'field'},el('span',{textContent:'Opacidad'}),opacity,value));
+  if(s.symbology==='hexagons'||s.symbology==='bubbles'){
+    const size=el('select',{},el('option',{value:'auto',textContent:'Automático según zoom'}),
+      ...summary.hexagon_sizes.map(v=>el('option',{value:String(v),textContent:`Hexágonos de ${SIZE_LABEL[v]||v+' m'}`})));
+    size.value=String(s.size);
+    size.addEventListener('change',()=>update(slug,{size:size.value}));
+    body.append(el('label',{className:'field'},el('span',{textContent:'Tamaño'}),size));
+  }
+  const filter=filterParam(byCategory(slug));
+  body.append(legend(slug),explain(slug),
+    el('p',{className:'downloads'},...[['geojson','GeoJSON'],['csv','CSV'],['gpkg','GeoPackage']].map(([format,label])=>
+      el('a',{href:`/atlas/layers/establishments/download?format=${format}&ATLAS_FILTER=${filter}`,textContent:`${label} ↓`,download:''}))),
+    el('div',{className:'row-actions'},
+      action(s.visible?'eye':'eyeOff',s.visible?'Ocultar':'Mostrar',()=>{setVisible(slug,!s.visible);render();}),
+      Object.assign(action('up','Subir',()=>move(slug,index-1)),{disabled:index===0}),
+      Object.assign(action('down','Bajar',()=>move(slug,index+1)),{disabled:index===active.length-1}),
+      el('span',{className:'spacer'}),action('trash','Quitar',()=>removeLayer(slug))));
+  return body;
+}
+function renderActive(){
+  $('#active-list').replaceChildren(...active.map((slug,index)=>{
+    const open=openRow===slug,s=settings[slug];
+    const head=el('button',{className:'row-head'},el('span',{className:'index num',textContent:String(index+1).padStart(2,'0')}),
+      el('span',{className:'swatch',style:`background:${s.color}`}),
+      el('span',{className:'title'+(s.visible?'':' off')},category(slug).name,el('small',{textContent:SYMBOLOGIES[s.symbology]})));
+    head.insertAdjacentHTML('beforeend',icon(open?'chevronUp':'chevronDown'));
+    head.setAttribute('aria-expanded',open);
+    head.addEventListener('click',()=>{openRow=open?null:slug;renderActive();});
+    const row=el('li',{className:'row'+(open?' open':'')},head);
+    if(open)row.append(rowBody(slug,index));
+    return row;
+  }));
+}
+
+/* ---------- popups ---------- */
+function interactiveLayers(){
+  return active.filter(slug=>settings[slug].visible).flatMap(mapLayerIds).filter(id=>!id.endsWith(':heat'));
+}
+function popupContent(eyebrow,title,pairs){
+  return el('div',{className:'pop'},el('div',{className:'pop-eyebrow',textContent:eyebrow}),el('div',{className:'pop-title',textContent:title}),
+    el('dl',{},...pairs.filter(([,v])=>v!==null&&v!==undefined&&v!=='').flatMap(([k,v])=>[el('dt',{textContent:k}),el('dd',{textContent:String(v)})])));
+}
+async function identify(event){
+  const feature=map.queryRenderedFeatures(event.point,{layers:interactiveLayers()})[0];
+  if(!feature)return;
+  const c=category(feature.layer.id.split(':')[0]),p=feature.properties;
+  const popup=new maplibregl.Popup({maxWidth:'320px'}).setLngLat(event.lngLat);
+  if(!feature.layer.id.endsWith(':points')){
+    popup.setDOMContent(popupContent(c.name,`${fmt(p.count)} establecimiento${p.count==1?'':'s'}`,[
+      ['Densidad',`${fmt(p.density_km2,1)} por km²`],['Hexágono',SIZE_LABEL[p.size_m]||`${p.size_m} m`]])).addTo(map);
+    return;
+  }
+  popup.setDOMContent(popupContent(c.name,'Consultando…',[])).addTo(map);
+  try{
+    const params=new URLSearchParams({service:'WFS',version:'2.0.0',request:'GetFeature',typeNames:'establishments',
+      outputFormat:'application/json',count:1,ATLAS_FILTER:JSON.stringify({op:'eq',field:'denue_id',value:p.denue_id})});
+    const response=await fetch('/atlas/wfs?'+params);
+    if(!response.ok)throw Error(`HTTP ${response.status}`);
+    const record=(await response.json()).features[0]?.properties;
+    if(!record)throw Error('sin registro');
+    popup.setDOMContent(popupContent(c.name,record.name||'Sin nombre en el DENUE',[
+      ['Actividad',record.activity],['Personal',record.staff],['Colonia',record.settlement],
+      ['Municipio',record.municipality],['Alta en DENUE',record.opened?.slice(0,7)]]));
+  }catch(error){popup.setDOMContent(popupContent(c.name,'No se pudo consultar',[['Error',error.message]]));}
+}
+
+/* ---------- basemap and controls ---------- */
+function setBasemap(key){
+  baseKey=key;
+  for(const option of Object.keys(BASEMAPS))map.setLayoutProperty(`base:${option}`,'visibility',option===key?'visible':'none');
+  $('#base-menu').replaceChildren(...Object.entries(BASEMAPS).map(([option,item])=>{
+    const button=el('button',{},item.label,el('small',{textContent:item.detail}));
+    button.setAttribute('role','radio');button.setAttribute('aria-checked',option===key);
+    button.addEventListener('click',()=>{setBasemap(option);toggleBaseMenu(false);});
+    return button;
+  }));
+}
+function toggleBaseMenu(open=$('#base-menu').hidden){$('#base-menu').hidden=!open;$('#base').setAttribute('aria-expanded',open);}
+function home(){
+  const [minx,miny,maxx,maxy]=summary.extent,wide=innerWidth>760;
+  map.fitBounds([[minx,miny],[maxx,maxy]],{padding:{top:16,left:16,bottom:wide?16:$('.onmap').offsetHeight+16,right:wide?372:64},duration:0});
+}
+
+/* ---------- start ---------- */
+for(const [id,name] of [['zoom-in','plus'],['zoom-out','minus'],['home','home'],['base','layers'],['clear-all','trash']])$('#'+id).innerHTML=icon(name);
+(async()=>{
+  try{
+    const response=await fetch('/densimap/categories');
+    if(!response.ok)throw Error(`HTTP ${response.status}`);
+    summary=await response.json();
+    if(!summary.extent)throw Error('todavía no hay datos cargados; ejecuta el ETL');
+  }catch(error){
+    setStatus('Error',true);
+    $('#catalog-list').replaceChildren(el('p',{className:'empty',textContent:'No se pudo cargar el catálogo: '+error.message}));
+    return;
+  }
+  $('#source').textContent=summary.edition?`DENUE ${summary.edition.replace('_','/')}`:'DENUE';
+  const [minx,miny,maxx,maxy]=summary.extent,padX=(maxx-minx)*.6,padY=(maxy-miny)*.6;
+  map=new maplibregl.Map({container:'map',attributionControl:false,minZoom:7,maxZoom:18,dragRotate:false,pitchWithRotate:false,
+    maxBounds:[[minx-padX,miny-padY],[maxx+padX,maxy+padY]],bounds:[[minx,miny],[maxx,maxy]],
+    style:{version:8,sources:{
+      ...Object.fromEntries(Object.entries(BASEMAPS).map(([key,b])=>[`base:${key}`,{type:'raster',tiles:[b.tiles],tileSize:256,maxzoom:b.maxzoom,attribution:b.attribution}])),
+      municipalities:{type:'vector',tiles:[`${location.origin}/atlas/tiles/municipalities/{z}/{x}/{y}.mvt?properties=name`],maxzoom:14,attribution:`${summary.attribution} · Límites municipales IIEG`},
+    },layers:[
+      {id:'background',type:'background',paint:{'background-color':'#f3f2ef'}},
+      ...Object.keys(BASEMAPS).map(key=>({id:`base:${key}`,type:'raster',source:`base:${key}`,layout:{visibility:key===baseKey?'visible':'none'}})),
+      {id:'municipalities',type:'line',source:'municipalities','source-layer':'municipalities',paint:{'line-color':'#0d0d0d','line-opacity':.55,'line-width':['interpolate',['linear'],['zoom'],8,.6,14,1.4],'line-dasharray':[3,2]}},
+    ]},
+  });
+  map.addControl(new maplibregl.AttributionControl({compact:true}),'bottom-left');
+  map.addControl(new maplibregl.ScaleControl({unit:'metric'}),'bottom-left');
+  map.on('click',identify);
+  map.on('mousemove',event=>{
+    const layers=interactiveLayers();
+    map.getCanvas().style.cursor=layers.length&&map.queryRenderedFeatures(event.point,{layers}).length?'pointer':'';
+  });
+  map.on('zoomend',()=>{if(openRow&&settings[openRow].size==='auto')renderActive();});
+  map.on('dataloading',()=>setStatus('Cargando…'));
+  map.on('idle',()=>setStatus(active.length?'Listo':''));
+  map.on('error',event=>{if(event.sourceId&&!event.sourceId.startsWith('base:'))setStatus('Error al cargar teselas',true);});
+  await new Promise(resolve=>map.once('load',resolve));
+  setBasemap(baseKey);
+  $('#query').addEventListener('input',renderCatalog);
+  $('#zoom-in').addEventListener('click',()=>map.zoomIn());
+  $('#zoom-out').addEventListener('click',()=>map.zoomOut());
+  $('#home').addEventListener('click',home);
+  $('#base').addEventListener('click',()=>toggleBaseMenu());
+  $('#clear-all').addEventListener('click',()=>[...active].forEach(removeLayer));
+  $('#catalog-toggle').addEventListener('click',()=>{
+    const open=document.body.classList.toggle('catalog-open');$('#catalog-toggle').setAttribute('aria-expanded',open);
+  });
+  document.addEventListener('keydown',event=>{if(event.key==='Escape')toggleBaseMenu(false);});
+  toggleLayer('cafeterias');
+  home();
+})();
+</script>
+</html>
