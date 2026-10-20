@@ -1,0 +1,49 @@
+version: 1
+
+study_area:
+  name: "Zona Metropolitana de Guadalajara"
+  # Claves INEGI de Jalisco (entidad 14), verificadas contra cve_mun/municipio del DENUE 05_2026.
+  municipalities:
+    - {code: "039", name: "Guadalajara"}
+    - {code: "120", name: "Zapopan"}
+    - {code: "098", name: "San Pedro Tlaquepaque"}
+    - {code: "101", name: "Tonalá"}
+    - {code: "097", name: "Tlajomulco de Zúñiga"}
+    - {code: "070", name: "El Salto"}
+    - {code: "051", name: "Juanacatlán"}
+    - {code: "044", name: "Ixtlahuacán de los Membrillos"}
+    - {code: "124", name: "Zapotlanejo"}
+  boundaries: data/reference/zmg_municipios.geojson
+
+source:
+  name: inegi_denue
+  url: "https://www.inegi.org.mx/contenidos/masiva/denue/denue_14_csv.zip"
+  member: conjunto_de_datos/denue_inegi_14_.csv
+  encoding: latin-1
+  attribution: "INEGI. Directorio Estadístico Nacional de Unidades Económicas (DENUE)"
+  license: "Términos de Libre Uso de la Información del INEGI"
+  timeout_seconds: 120
+  max_retries: 2
+  retry_backoff_seconds: 5
+
+# Hexagon edge lengths in metres (ST_HexagonGrid size, EPSG:6368).
+hexagon_sizes: [250, 500, 1000, 2000]
+
+# A SCIAN code belongs to the category whose prefix it starts with, unless an exclude prefix
+# also matches. Categories may not overlap.
+categories:
+  - {slug: cafeterias, name: "Cafeterías", group: "Comida", color: "#7b4a32", scian: ["722515"]}
+  - {slug: restaurantes, name: "Restaurantes", group: "Comida", color: "#d9376e",
+     scian: ["7225"], exclude: ["722515"]}
+  - {slug: panaderias, name: "Panaderías", group: "Comida", color: "#ff8e3c", scian: ["311812"]}
+  - {slug: tortillerias, name: "Tortillerías", group: "Comida", color: "#c9a227", scian: ["311830"]}
+  - {slug: farmacias, name: "Farmacias", group: "Comercio de barrio", color: "#2e9d6b",
+     scian: ["464111", "464112"]}
+  - {slug: abarrotes, name: "Tiendas de abarrotes", group: "Comercio de barrio", color: "#3d6fb6",
+     scian: ["461110"]}
+  - {slug: belleza, name: "Salones de belleza", group: "Servicios personales", color: "#a855c7",
+     scian: ["812110"]}
+  - {slug: gimnasios, name: "Gimnasios", group: "Servicios personales", color: "#0e9aa7",
+     scian: ["713943", "713944"]}
+  - {slug: bares, name: "Bares y cantinas", group: "Ocio nocturno", color: "#0b1d3a",
+     scian: ["722412"]}

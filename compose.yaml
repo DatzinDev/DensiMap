@@ -1,0 +1,105 @@
+name: densimap
+
+services:
+  db:
+    image: postgis/postgis:17-3.5
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-densimap}
+      POSTGRES_USER: ${POSTGRES_USER:-densimap}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-densimap_dev}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-0}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  flyway:
+    image: redgate/flyway:13.6.0
+    profiles: ["migrate"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      FLYWAY_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-densimap}
+      FLYWAY_USER: ${POSTGRES_USER:-densimap}
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-densimap_dev}
+      FLYWAY_SCHEMAS: meta
+      FLYWAY_CREATE_SCHEMAS: "true"
+      FLYWAY_LOCATIONS: filesystem:/flyway/migrations
+    volumes:
+      - ./db/migrations:/flyway/migrations:ro
+    command: migrate
+
+  # Disposable database for DENSIMAP_TEST_DATABASE_URL: never the `db` above, no volume.
+  test-db:
+    image: postgis/postgis:17-3.5
+    profiles: ["test"]
+    environment:
+      POSTGRES_DB: densimap_test
+      POSTGRES_USER: densimap
+      POSTGRES_PASSWORD: densimap_test
+    ports:
+      - "127.0.0.1:${TEST_POSTGRES_PORT:-0}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  test-flyway:
+    image: redgate/flyway:13.6.0
+    profiles: ["test"]
+    depends_on:
+      test-db:
+        condition: service_healthy
+    environment:
+      FLYWAY_URL: jdbc:postgresql://test-db:5432/densimap_test
+      FLYWAY_USER: densimap
+      FLYWAY_PASSWORD: densimap_test
+      FLYWAY_SCHEMAS: meta
+      FLYWAY_CREATE_SCHEMAS: "true"
+      FLYWAY_LOCATIONS: filesystem:/flyway/migrations
+    volumes:
+      - ./db/migrations:/flyway/migrations:ro
+    command: migrate
+
+  # Downloads the current DENUE snapshot into data/raw/ and loads it. For an existing file:
+  # docker compose --profile etl run --rm etl python -m densimap --offline data/raw/<file>.zip
+  etl:
+    build: .
+    profiles: ["etl"]
+    # Snapshots belong to the host user, not root.
+    user: "${DENSIMAP_UID:-1000}:${DENSIMAP_GID:-1000}"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-densimap}:${POSTGRES_PASSWORD:-densimap_dev}@db:5432/${POSTGRES_DB:-densimap}
+    volumes:
+      - ./data/raw:/app/data/raw
+    command: ["python", "-m", "densimap"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: .
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-densimap}:${POSTGRES_PASSWORD:-densimap_dev}@db:5432/${POSTGRES_DB:-densimap}
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8089}:8000"
+    mem_limit: 1g
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+
+volumes:
+  postgres_data:
