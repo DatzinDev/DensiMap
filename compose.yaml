@@ -1,0 +1,69 @@
+services:
+  db:
+    image: postgis/postgis:17-3.5
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-densimap}
+      POSTGRES_USER: ${POSTGRES_USER:-densimap}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-densimap_dev}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-0}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  flyway:
+    image: redgate/flyway:13.6.0
+    profiles: ["migrate"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      FLYWAY_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-densimap}
+      FLYWAY_USER: ${POSTGRES_USER:-densimap}
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-densimap_dev}
+      FLYWAY_SCHEMAS: meta
+      FLYWAY_CREATE_SCHEMAS: "true"
+      FLYWAY_LOCATIONS: filesystem:/flyway/migrations
+    volumes:
+      - ./db/migrations:/flyway/migrations:ro
+    command: migrate
+
+  # Disposable database for DENSIMAP_TEST_DATABASE_URL: never the `db` above, no volume.
+  test-db:
+    image: postgis/postgis:17-3.5
+    profiles: ["test"]
+    environment:
+      POSTGRES_DB: densimap_test
+      POSTGRES_USER: densimap
+      POSTGRES_PASSWORD: densimap_test
+    ports:
+      - "127.0.0.1:${TEST_POSTGRES_PORT:-0}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  test-flyway:
+    image: redgate/flyway:13.6.0
+    profiles: ["test"]
+    depends_on:
+      test-db:
+        condition: service_healthy
+    environment:
+      FLYWAY_URL: jdbc:postgresql://test-db:5432/densimap_test
+      FLYWAY_USER: densimap
+      FLYWAY_PASSWORD: densimap_test
+      FLYWAY_SCHEMAS: meta
+      FLYWAY_CREATE_SCHEMAS: "true"
+      FLYWAY_LOCATIONS: filesystem:/flyway/migrations
+    volumes:
+      - ./db/migrations:/flyway/migrations:ro
+    command: migrate
+
+volumes:
+  postgres_data:
