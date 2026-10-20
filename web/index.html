@@ -255,12 +255,16 @@ function drawLayer(slug){
       'circle-radius':['interpolate',['linear'],['zoom'],9,1.6,12,2.8,15,5,17,7],
       'circle-stroke-color':'#fff','circle-stroke-width':['interpolate',['linear'],['zoom'],11,0,14,.8],
     }});
-    else map.addLayer({id:`${slug}:heat`,type:'heatmap',source,'source-layer':'establishments',layout,paint:{
+    else{
+      // Large categories saturate a fixed heatmap; scale intensity down with the category size.
+      const k=Math.min(1,Math.sqrt(1500/Math.max(category(slug).total,1)));
+      map.addLayer({id:`${slug}:heat`,type:'heatmap',source,'source-layer':'establishments',layout,paint:{
       'heatmap-opacity':s.opacity,
-      'heatmap-radius':['interpolate',['linear'],['zoom'],9,5,12,12,15,26],
-      'heatmap-intensity':['interpolate',['linear'],['zoom'],9,.6,15,1.6],
+      'heatmap-radius':['interpolate',['linear'],['zoom'],9,5,12,10,15,24],
+      'heatmap-intensity':['interpolate',['linear'],['zoom'],9,.6*k,15,1.6*k],
       'heatmap-color':['interpolate',['linear'],['heatmap-density'],0,'rgba(0,0,0,0)',.15,mix(s.color,.25),.4,mix(s.color,.5),.7,mix(s.color,.8),1,s.color],
     }});
+    }
     return;
   }
   const hexagons=s.symbology==='hexagons',layer=hexagons?'hexagons':'hexagon_centers';
