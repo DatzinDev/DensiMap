@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop]
+  push:
+    branches: [develop]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - run: uv sync --frozen --extra dev
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest -q tests/unit
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: densimap_ci
+          POSTGRES_USER: densimap
+          POSTGRES_PASSWORD: densimap_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U densimap -d densimap_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - run: uv sync --frozen --extra dev
+      - name: Apply Flyway migrations
+        run: |
+          docker run --rm --network host \
+            -v "$PWD/db/migrations:/flyway/migrations:ro" \
+            -e FLYWAY_URL="jdbc:postgresql://localhost:5432/densimap_ci" \
+            -e FLYWAY_USER="densimap" \
+            -e FLYWAY_PASSWORD="densimap_ci" \
+            -e FLYWAY_SCHEMAS="meta" \
+            -e FLYWAY_CREATE_SCHEMAS="true" \
+            -e FLYWAY_LOCATIONS="filesystem:/flyway/migrations" \
+            redgate/flyway:13.6.0 migrate
+      - name: Run integration tests
+        env:
+          DENSIMAP_TEST_DATABASE_URL: postgresql://densimap:densimap_ci@localhost:5432/densimap_ci
+        run: uv run pytest -q tests/integration
