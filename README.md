@@ -91,4 +91,9 @@ uv run pytest                                          # todo, contra la base de
   municipios en `data/reference/`.
 - Mapas base: Esri, OpenStreetMap.
 
+## Licencia
+
+[GNU AGPL v3 o posterior](LICENSE). Si ofreces DensiMap modificado como servicio en red, debes
+publicar el código fuente de tu versión a sus usuarios.
+
 Basado en el flujo de [zmg-cafe-etl](https://github.com/hectmor/zmg-cafe-etl) y en Atlas de Datzin.
