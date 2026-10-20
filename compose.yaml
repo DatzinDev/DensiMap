@@ -65,5 +65,37 @@ services:
       - ./db/migrations:/flyway/migrations:ro
     command: migrate
 
+  # Downloads the current DENUE snapshot into data/raw/ and loads it. For an existing file:
+  # docker compose --profile etl run --rm etl python -m densimap --offline data/raw/<file>.zip
+  etl:
+    build: .
+    profiles: ["etl"]
+    # Snapshots belong to the host user, not root.
+    user: "${DENSIMAP_UID:-1000}:${DENSIMAP_GID:-1000}"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-densimap}:${POSTGRES_PASSWORD:-densimap_dev}@db:5432/${POSTGRES_DB:-densimap}
+    volumes:
+      - ./data/raw:/app/data/raw
+    command: ["python", "-m", "densimap"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-densimap}:${POSTGRES_PASSWORD:-densimap_dev}@db:5432/${POSTGRES_DB:-densimap}
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8089}:8000"
+    mem_limit: 1g
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+
 volumes:
   postgres_data:
