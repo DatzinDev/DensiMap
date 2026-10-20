@@ -1,6 +1,9 @@
+name: densimap
+
 services:
   db:
     image: postgis/postgis:17-3.5
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-densimap}
       POSTGRES_USER: ${POSTGRES_USER:-densimap}
@@ -83,6 +86,7 @@ services:
 
   web:
     build: .
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-densimap}:${POSTGRES_PASSWORD:-densimap_dev}@db:5432/${POSTGRES_DB:-densimap}
     ports:
