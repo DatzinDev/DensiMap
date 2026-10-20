@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "PyYAML>=6.0,<7.0",
-    "atlas-geo @ git+https://github.com/DatzinDev/Atlas@63a12a3a9b9de6bbfe75777bcdabe0ef0418a2c8",
+    "atlas-geo @ https://github.com/DatzinDev/Atlas/archive/63a12a3a9b9de6bbfe75777bcdabe0ef0418a2c8.tar.gz",
     "uvicorn>=0.34,<1.0",
 ]
 
